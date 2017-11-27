@@ -20,25 +20,7 @@
 #    MA 02111-1307  USA
 #
 
-FROM ubuntu:latest
-
-RUN apt-get update
-RUN apt-get install -y wget git bzip2 ca-certificates
-
-# Install Anaconda
-RUN echo 'export PATH=/opt/conda/bin:$PATH' > /etc/profile.d/conda.sh && \
-    wget --quiet https://repo.continuum.io/archive/Anaconda2-5.0.1-Linux-x86_64.sh -O ~/anaconda.sh && \
-    /bin/bash ~/anaconda.sh -b -p /opt/conda && \
-    rm ~/anaconda.sh
-ENV PATH /opt/conda/bin:$PATH
-
-# Install PyTorch
-RUN conda install --yes -c soumith pytorch
-
-# Install Tensorflow
-RUN pip install --ignore-installed --upgrade https://storage.googleapis.com/tensorflow/linux/cpu/tensorflow-1.4.0-cp27-none-linux_x86_64.whl
+FROM ml_workshop_2017_environment:latest
 
 WORKDIR /opt
 RUN git clone https://github.com/ICRAR/ML_Workshop_2017.git
-
-CMD ["cd /opt/ML_Workshop_2017 && git pull"]
