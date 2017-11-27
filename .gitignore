@@ -1,3 +1,5 @@
 /.idea
 /ML_Workshop_2017.iml
 .DS_Store
+
+.ipynb_checkpoints
