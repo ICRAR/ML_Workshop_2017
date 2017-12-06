@@ -1,0 +1,7 @@
+astropy
+h5py
+numpy
+pandas
+scipy
+snakeviz
+statsmodels
