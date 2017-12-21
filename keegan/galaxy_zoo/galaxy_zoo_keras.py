@@ -7,7 +7,6 @@ import cv2
 
 data_path = 'data/'
 
-
 from keras.models import Sequential, Model
 from keras.layers.core import Flatten, Dense, Dropout, Lambda, Reshape
 from keras.layers import Input
@@ -56,7 +55,7 @@ def VGG_16():
 # Compile
 optimizer = RMSprop(lr=1e-6)
 model = VGG_16()
-model.compile(loss='mean_squared_error', optimizer=optimizer)
+model.compile(loss='mean_squared_error', metrics=['accuracy'], optimizer=optimizer)
 model.save("data/weights.hdf5")
 
 
@@ -196,12 +195,16 @@ class LossHistory(Callback):
     def on_train_begin(self, logs={}):
         self.losses = []
         self.val_losses = []
+        self.acc = []
+        self.val_acc = []
 
     def on_batch_end(self, batch, logs={}):
         self.losses.append(logs.get('loss'))
         self.val_losses.append(logs.get('val_loss'))
+        self.acc.append(logs.get('acc'))
+        self.val_acc.append(logs.get('val_acc'))
 
-early_stopping = EarlyStopping(monitor='val_loss', patience=7, verbose=1, mode='auto')
+#early_stopping = EarlyStopping(monitor='val_loss', patience=7, verbose=1, mode='auto')
 history = LossHistory()
 
 from keras.callbacks import ModelCheckpoint
@@ -224,7 +227,7 @@ hist = model.fit_generator(BatchGenerator(fetcher),
                     epochs=50,
                     validation_data=ValBatchGenerator(fetcher),
                     verbose=2,
-                    callbacks=[history,checkpointer,early_stopping],
+                    callbacks=[history,checkpointer],
 					validation_steps=val_steps_to_take
                    )
 """
@@ -241,15 +244,21 @@ hist = model.fit_generator(BatchGenerator(fetcher),
 # ### Plot training/validation loss
 print "WRITING DATA TO FILES"
 
-with open("plots/data/Test", 'w') as f:
+with open("plots/data/loss.txt", 'w') as f:
     for line in hist.history['loss']:
-        f.write(str(line)+"/n")
-with open("plots/data/Validation", 'w') as f:
+        f.write(str(line)+"\n")
+with open("plots/data/val_loss.txt", 'w') as f:
     for line in hist.history['val_loss']:
-        f.write(str(line)+"/n")
-with open("plots/data/Epochs", 'w') as f:
+        f.write(str(line)+"\n")
+with open("plots/data/epochs.txt", 'w') as f:
     for line in hist.epoch:
-        f.write(str(line)+"/n")
+        f.write(str(line)+"\n")
+with open("plots/data/val_acc.txt", 'w') as f:
+    for line in hist.history["val_acc"]:
+        f.write(str(line)+"\n")
+with open("plots/data/acc.txt", 'w') as f:
+    for line in hist.history["acc"]:
+        f.write(str(line)+"\n")
 
 """
 print "PLOTTING FIGURE"
@@ -260,11 +269,9 @@ plt.xlabel("Epochs")
 plt.ylabel("RMSE")
 plt.legend()
 plt.savefig("plots/Epochs.png")
-"""
+
 
 # ### Model Predict
-
-# In[ ]:
 
 
 # Load best model weights
@@ -272,7 +279,7 @@ from keras.models import load_model
 print "LOADING MODEL"
 model = load_model('data/weights.hdf5')
 print "MODEL LOADED"
-# In[ ]:
+
 
 def TestBatchGenerator(getter):
 	count=0
@@ -285,23 +292,12 @@ def TestBatchGenerator(getter):
 			yield (X_train)
 
 
-predictions = model.predict_generator(TestBatchGenerator(fetcher),
+#predictions = model.predict_generator(TestBatchGenerator(fetcher),
                         steps = len(fetcher.test_images_paths),
                         max_q_size = 32,)
 
-"""
-predictions = model.predict_generator(TestBatchGenerator(fetcher),
-                       val_samples = len(fetcher.test_images_paths),
-                        max_q_size = 32,)
-"""
+#predictions.shape
 
-# In[ ]:
-
-
-predictions.shape
-
-
-# In[ ]:
 
 
 header = open('all_zeros_benchmark.csv','r').readlines()[0]
@@ -313,3 +309,4 @@ with open('submission_1.csv','w') as outfile:
         pred = predictions[i]
         outline = id_ + "," + ",".join([str(x) for x in pred])
         outfile.write(outline + "\n")
+"""
