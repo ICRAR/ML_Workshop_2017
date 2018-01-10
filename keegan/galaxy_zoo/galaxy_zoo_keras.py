@@ -4,8 +4,11 @@ import os
 import numpy as np
 import glob
 import cv2
+from datetime import datetime
+
 
 data_path = 'data/'
+
 
 from keras.models import Sequential, Model
 from keras.layers.core import Flatten, Dense, Dropout, Lambda, Reshape
@@ -13,6 +16,10 @@ from keras.layers import Input
 from keras.layers.convolutional import Conv2D, MaxPooling2D, ZeroPadding2D
 from keras.layers import Conv2D, MaxPooling2D, Activation
 from keras.optimizers import SGD, RMSprop, Adam
+from keras.utils.np_utils import to_categorical
+
+# Begin timing
+start = datetime.now()
 
 
 def ConvBlock(layers, model, filters):
@@ -22,13 +29,13 @@ def ConvBlock(layers, model, filters):
     for i in range(layers):
         model.add(ZeroPadding2D((1,1)))  # zero padding of size 1
         model.add(Conv2D(filters, (3, 3), activation='relu'))  # 3x3 filter size
-    model.add(MaxPooling2D((2,2), strides=(2,2), dim_ordering="channels_first"))
+    model.add(MaxPooling2D((2,2), strides=(2,2), data_format="channels_first"))
 
 def FCBlock(model):
     """
     Fully connected block with ReLU and dropout
     """
-    model.add(Dense(4096, activation='relu'))
+    model.add(Dense(4096, activation='relu', kernel_initializer='normal'))
     model.add(Dropout(0.5))
 
 def VGG_16():
@@ -49,19 +56,20 @@ def VGG_16():
     FCBlock(model)
     FCBlock(model)
 
-    model.add(Dense(37, activation = 'sigmoid'))
+    model.add(Dense(37, input_dim=106*106*3, activation = 'sigmoid'))
     return model
 
 # Compile
 optimizer = RMSprop(lr=1e-6)
 model = VGG_16()
 model.compile(loss='mean_squared_error', metrics=['accuracy'], optimizer=optimizer)
+#model.compile(loss='mean_squared_error', metrics=['accuracy'], optimizer=optimizer)
 model.save("data/weights.hdf5")
 
 
 # In[49]:
 
-
+import csv
 from random import shuffle
 #from scipy.misc import imresize
 
@@ -86,7 +94,7 @@ class data_getter:
 
         def get_all_solutions():
         ### Import solutions file and load into self.solutions
-            import csv
+
             all_solutions = {}
             with open('training_solutions_rev1.csv', 'r') as f:
                 reader = csv.reader(f, delimiter=",")
@@ -106,12 +114,9 @@ class data_getter:
 # fetcher = data_getter('data/sample/')
 fetcher = data_getter('data/images/training/')
 print "FETCHER:"
-print fetcher
-print "//////////"
+#print fetcher
 print(fetcher.train_path)
 
-
-# In[50]:
 
 
 def process_images(paths):
@@ -123,68 +128,59 @@ def process_images(paths):
     arr = np.zeros(shape=(count,3,106,106))
     #print "array shape: " + str(arr.shape)
     for c, path in enumerate(paths):
-        #print "reading"
         img = cv2.imread(path)     #read in image
-        #print "cropping"
         img = img[106:318, 106:318] #crop 424x424 -> 212x212. Centred
-        #print "img size now:"
-        #print img.shape
-        #print "resizing"
         img = cv2.resize(img, (106,106), interpolation = cv2.INTER_AREA)    #resizing
-
-        #img = imresize(img,size=(106,106,3),interp="cubic").T # downsample to half res
         arr[c,0] = img[:,:,0]
         arr[c,1] = img[:,:,1]
         arr[c,2] = img[:,:,2]
     return arr
 
 
-# In[51]:
 
 
+"""
 ## Print some before/after processing images
+
 #print fetcher.training_images_paths
 process_images([fetcher.train_path + '/' + fetcher.training_images_paths[100]])#
 im = cv2.imread(fetcher.train_path + '/' + fetcher.training_images_paths[0])
 print "IMAGE SHAPE:"
 print(im.shape)#
+import matplotlib.pyplot as plt
+plt.imshow(im)
+plt.show()
+im = im[106:318, 106:318] #crop 424x424 -> 212x212. Centred
+im = cv2.resize(im, (106,106), interpolation = cv2.INTER_AREA)
+print "IMAGE SHAPE:"
+print(im.shape)#
+plt.imshow(im)
+plt.show()
+"""
 
-#plt.imshow(im)
-#plt.show()
-#im = im.T[:,106:106*3,106:106*3] #crop 424x424 -> 212x212
-#im = imresize(im,size=(106,106,3),interp="cubic").T # downsample to half res#
-#print "IMAGE SHAPE:"
-#print(im.shape)#
-#plt.imshow(im.T)
-
-
-# In[52]:
 
 
 # Create generator that yields (current features X, current labels y)
 def BatchGenerator(getter):
-	while 1:
-		for f in getter.training_images_paths:
-			X_train = process_images([getter.train_path + '/' + fname for fname in [f]])
-			id_ = getter.get_id(f)
-			y_train = np.array(getter.find_label(id_))
-			y_train = np.reshape(y_train,(1,37))
-			yield (X_train, y_train)
+    while 1:
+        for f in getter.training_images_paths:
+            X_train = process_images([getter.train_path + '/' + fname for fname in [f]])
+            id_ = getter.get_id(f)
+            y_train = np.array(getter.find_label(id_))
+            #y_train = to_categorical(y_train, 37)
+            y_train = np.reshape(y_train,(1,37))
+            yield (X_train, y_train)
 
 def ValBatchGenerator(getter):
-	while 1:
-		for f in getter.validation_images_paths:
-			X_train = process_images([getter.val_path + '/' + fname for fname in [f]])
-			id_ = getter.get_id(f)
-			y_train = np.array(getter.find_label(id_))
-			y_train = np.reshape(y_train,(1,37))
-			yield (X_train, y_train)
+    while 1:
+        for f in getter.validation_images_paths:
+            X_train = process_images([getter.val_path + '/' + fname for fname in [f]])
+            id_ = getter.get_id(f)
+            y_train = np.array(getter.find_label(id_))
+            #y_train = to_categorical(y_train, 37)
+            y_train = np.reshape(y_train,(1,37))
+            yield (X_train, y_train)
 
-
-
-# ### Train model
-
-# In[53]:
 
 
 from keras.callbacks import Callback
@@ -207,6 +203,7 @@ class LossHistory(Callback):
 #early_stopping = EarlyStopping(monitor='val_loss', patience=7, verbose=1, mode='auto')
 history = LossHistory()
 
+
 from keras.callbacks import ModelCheckpoint
 checkpointer = ModelCheckpoint(filepath='data/weights.hdf5', verbose=1, save_best_only=True)
 
@@ -216,30 +213,22 @@ steps_to_take = int(len(fetcher.training_images_paths)/batch_size)
 val_steps_to_take = int(len(fetcher.validation_images_paths)/batch_size)
 print "BATCH SIZE:"
 print batch_size
+print "Steps_to_take"
+print steps_to_take
+print "Val_steps_to_take"
 print val_steps_to_take
-                #typically be equal to the number of unique samples if your dataset
-                #divided by the batch size.
-
 print "LOADING MODEL"
+
 model = load_model('data/weights.hdf5')
 hist = model.fit_generator(BatchGenerator(fetcher),
-                    steps_per_epoch=int(steps_to_take/batch_size),
+                    steps_per_epoch=steps_to_take,
                     epochs=50,
                     validation_data=ValBatchGenerator(fetcher),
                     verbose=2,
                     callbacks=[history,checkpointer],
 					validation_steps=val_steps_to_take
                    )
-"""
-hist = model.fit_generator(BatchGenerator(fetcher),
-                    samples_per_epoch=steps_to_take,
-                    nb_epoch=50,
-                    validation_data=ValBatchGenerator(fetcher),
-                    nb_val_samples=val_steps_to_take,
-                    verbose=2,
-                    callbacks=[history,checkpointer,early_stopping],
-                   )
-"""
+
 
 # ### Plot training/validation loss
 print "WRITING DATA TO FILES"
@@ -270,6 +259,8 @@ plt.ylabel("RMSE")
 plt.legend()
 plt.savefig("plots/Epochs.png")
 
+"""
+
 
 # ### Model Predict
 
@@ -282,31 +273,27 @@ print "MODEL LOADED"
 
 
 def TestBatchGenerator(getter):
-	count=0
-	while 1:		#not sure why this is here so i commented it -k
+	while 1:
 		print "TESTING..."
-		for f in getter.test_images_paths:
-			count+=1
-			#print "TESTING:	"+str(count)
-			X_train = process_images([getter.test_path + '/' + fname for fname in [f]])
+		for f in getter.validation_images_paths:
+			X_train = process_images([getter.val_path + '/' + fname for fname in [f]])
 			yield (X_train)
 
 
-#predictions = model.predict_generator(TestBatchGenerator(fetcher),
-                        steps = len(fetcher.test_images_paths),
-                        max_q_size = 32,)
+predictions = model.predict_generator(TestBatchGenerator(fetcher), steps = len(fetcher.validation_images_paths), max_queue_size = 32)
 
-#predictions.shape
-
-
+predictions.shape
 
 header = open('all_zeros_benchmark.csv','r').readlines()[0]
 
 with open('submission_1.csv','w') as outfile:
     outfile.write(header)
-    for i in range(len(fetcher.test_images_paths)):
-        id_ = (fetcher.get_id(fetcher.test_images_paths[i]))
+    for i in range(len(fetcher.validation_images_paths)):
+        id_ = (fetcher.get_id(fetcher.validation_images_paths[i]))
         pred = predictions[i]
         outline = id_ + "," + ",".join([str(x) for x in pred])
         outfile.write(outline + "\n")
-"""
+
+
+# Finish timing
+print "Script complete in " + str((datetime.now()-start))
