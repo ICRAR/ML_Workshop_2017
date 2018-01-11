@@ -1,11 +1,21 @@
 # # Galaxy Zoo with keras
 
+"""
+Command line arguments:
+1 - Learning Rate. Default = 1e-6
+2 - Loss function. Default = mean squared error
+3 - Activation function. Default = sigmoid
+"""
+
 import os
 import numpy as np
 import glob
 import cv2
 from datetime import datetime
-
+import random
+import string
+import time
+import sys
 
 data_path = 'data/'
 
@@ -59,12 +69,37 @@ def VGG_16():
     model.add(Dense(37, input_dim=106*106*3, activation = 'sigmoid'))
     return model
 
+
+#Initialize arguments
+if len(sys.argv)==4:
+    learning_rate = float(sys.argv[1])
+    loss_fn = str(sys.argv[2])
+    activation_fn = str(sys.argv[3])
+else:
+    #defualts
+    learning_rate = 1e-6
+    loss_fn = 'mean_squared_error'
+    activation_fn = 'sigmoid'
+
+
+
+print "LEARNING RATE:           " + str(learning_rate)
+print "LOSS FUNCTION:           " + str(loss_fn)
+print "ACTIVATION FUNCTION:     " + str(activation_fn)
+
+
 # Compile
 optimizer = RMSprop(lr=1e-6)
 model = VGG_16()
 model.compile(loss='mean_squared_error', metrics=['accuracy'], optimizer=optimizer)
 #model.compile(loss='mean_squared_error', metrics=['accuracy'], optimizer=optimizer)
-model.save("data/weights.hdf5")
+
+#Make a unique name for the model with a stimestamp
+timestr = time.strftime("%Y%m%d-%H%M%S")
+modelname = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(3))
+modelname = timestr + "_" + modelname
+print "This Model Name:" + modelname
+model.save("data/"+modelname+".hdf5")
 
 
 # In[49]:
@@ -205,21 +240,24 @@ history = LossHistory()
 
 
 from keras.callbacks import ModelCheckpoint
-checkpointer = ModelCheckpoint(filepath='data/weights.hdf5', verbose=1, save_best_only=True)
+checkpointer = ModelCheckpoint(filepath="data/"+modelname+".hdf5", verbose=1, save_best_only=True)
 
 
 batch_size = 32
+num_epochs = 50
 steps_to_take = int(len(fetcher.training_images_paths)/batch_size)
 val_steps_to_take = int(len(fetcher.validation_images_paths)/batch_size)
 print "BATCH SIZE:"
 print batch_size
+print "NUMBER OF EPOCHS:"
+print num_epochs
 print "Steps_to_take"
 print steps_to_take
 print "Val_steps_to_take"
 print val_steps_to_take
 print "LOADING MODEL"
 
-model = load_model('data/weights.hdf5')
+model = load_model("data/"+modelname+".hdf5")
 hist = model.fit_generator(BatchGenerator(fetcher),
                     steps_per_epoch=steps_to_take,
                     epochs=50,
@@ -233,42 +271,42 @@ hist = model.fit_generator(BatchGenerator(fetcher),
 # ### Plot training/validation loss
 print "WRITING DATA TO FILES"
 
-with open("plots/data/loss.txt", 'w') as f:
+with open("plots/data/" + modelname + "_loss.txt", 'w') as f:
     for line in hist.history['loss']:
         f.write(str(line)+"\n")
-with open("plots/data/val_loss.txt", 'w') as f:
+with open("plots/data/" + modelname + "_val_loss.txt", 'w') as f:
     for line in hist.history['val_loss']:
         f.write(str(line)+"\n")
-with open("plots/data/epochs.txt", 'w') as f:
+with open("plots/data/" + modelname + "_epochs.txt", 'w') as f:
     for line in hist.epoch:
         f.write(str(line)+"\n")
-with open("plots/data/val_acc.txt", 'w') as f:
+with open("plots/data/" + modelname + "_val_acc.txt", 'w') as f:
     for line in hist.history["val_acc"]:
         f.write(str(line)+"\n")
-with open("plots/data/acc.txt", 'w') as f:
+with open("plots/data/" + modelname + "_acc.txt", 'w') as f:
     for line in hist.history["acc"]:
         f.write(str(line)+"\n")
 
-"""
-print "PLOTTING FIGURE"
-plt.figure(figsize=(12,8))
-plt.plot(hist.epoch,hist.history['loss'],label='Test')
-plt.plot(hist.epoch,hist.history['val_loss'],label='Validation',linestyle='--')
-plt.xlabel("Epochs")
-plt.ylabel("RMSE")
-plt.legend()
-plt.savefig("plots/Epochs.png")
+# Find the lowest value for the loss and write the results
+temp_val_loss = hist.history["val_loss"]
+answer_dex = temp_val_loss.index(max(temp_val_loss))
 
-"""
+with open("solutions/" + modelname + ".txt", 'w') as f:
+    f.write("lR: " + str(learning_rate) + "\n"
+            + "Loss fn: " + loss_fn + "\n"
+            + "Activation fn: " + activation_fn + "\n\n")
+    f.write("loss: " + str(hist.history["loss"][answer_dex]) + "\n"
+            "val_loss: " + str(hist.history["val_loss"][answer_dex]) + "\n"
+            "acc: " + str(hist.history["acc"][answer_dex]) + "\n"
+            "val_acc: " + str(hist.history["val_acc"][answer_dex]))
 
 
 # ### Model Predict
 
-
 # Load best model weights
 from keras.models import load_model
 print "LOADING MODEL"
-model = load_model('data/weights.hdf5')
+model = load_model("data/"+modelname+".hdf5")
 print "MODEL LOADED"
 
 
