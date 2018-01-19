@@ -17,8 +17,8 @@ import string
 import time
 import sys
 
-data_path = 'data/'
-
+data_path = '/home/keegansmith/keras/data/'
+base_path = '/home/keegansmith/keras/'
 
 from keras.models import Sequential, Model
 from keras.layers.core import Flatten, Dense, Dropout, Lambda, Reshape
@@ -32,6 +32,25 @@ from keras.utils.np_utils import to_categorical
 start = datetime.now()
 
 
+#Initialize arguments
+if len(sys.argv)==4:
+    learning_rate = float(sys.argv[1])
+    loss_fn = str(sys.argv[2])
+    activation_fn = str(sys.argv[3])
+else:
+    #defualts
+    "USING DEFAULT PARAMETERS"
+    learning_rate = 1e-6
+    loss_fn = 'mean_squared_error'
+    activation_fn = 'sigmoid'
+
+
+print "LEARNING RATE:           " + str(learning_rate)
+print "LOSS FUNCTION:           " + str(loss_fn)
+print "ACTIVATION FUNCTION:     " + str(activation_fn)
+
+
+#Some defs
 def ConvBlock(layers, model, filters):
     """
     Create a layered Conv/Pooling block
@@ -42,6 +61,7 @@ def ConvBlock(layers, model, filters):
     model.add(MaxPooling2D((2,2), strides=(2,2), data_format="channels_first"))
 
 def FCBlock(model):
+
     """
     Fully connected block with ReLU and dropout
     """
@@ -66,40 +86,22 @@ def VGG_16():
     FCBlock(model)
     FCBlock(model)
 
-    model.add(Dense(37, input_dim=106*106*3, activation = 'sigmoid'))
+    model.add(Dense(37, input_dim=106*106*3, activation = activation_fn))
     return model
 
-
-#Initialize arguments
-if len(sys.argv)==4:
-    learning_rate = float(sys.argv[1])
-    loss_fn = str(sys.argv[2])
-    activation_fn = str(sys.argv[3])
-else:
-    #defualts
-    learning_rate = 1e-6
-    loss_fn = 'mean_squared_error'
-    activation_fn = 'sigmoid'
-
-
-
-print "LEARNING RATE:           " + str(learning_rate)
-print "LOSS FUNCTION:           " + str(loss_fn)
-print "ACTIVATION FUNCTION:     " + str(activation_fn)
 
 
 # Compile
 optimizer = RMSprop(lr=1e-6)
 model = VGG_16()
-model.compile(loss='mean_squared_error', metrics=['accuracy'], optimizer=optimizer)
+model.compile(loss=str(loss_fn), metrics=['accuracy'], optimizer=optimizer)
 #model.compile(loss='mean_squared_error', metrics=['accuracy'], optimizer=optimizer)
 
 #Make a unique name for the model with a stimestamp
 timestr = time.strftime("%Y%m%d-%H%M%S")
-modelname = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(3))
-modelname = timestr + "_" + modelname
+modelname = timestr + "_" + loss_fn + "_" + activation_fn + "_" + str(learning_rate)
 print "This Model Name:" + modelname
-model.save("data/"+modelname+".hdf5")
+model.save(data_path + modelname + ".hdf5")
 
 
 # In[49]:
@@ -131,7 +133,7 @@ class data_getter:
         ### Import solutions file and load into self.solutions
 
             all_solutions = {}
-            with open('training_solutions_rev1.csv', 'r') as f:
+            with open(base_path + 'training_solutions_rev1.csv', 'r') as f:
                 reader = csv.reader(f, delimiter=",")
                 next(reader)
                 for i, line in enumerate(reader):
@@ -147,7 +149,7 @@ class data_getter:
         return self.all_solutions[val]
 
 # fetcher = data_getter('data/sample/')
-fetcher = data_getter('data/images/training/')
+fetcher = data_getter(data_path + "images/training/")
 print "FETCHER:"
 #print fetcher
 print(fetcher.train_path)
@@ -240,7 +242,7 @@ history = LossHistory()
 
 
 from keras.callbacks import ModelCheckpoint
-checkpointer = ModelCheckpoint(filepath="data/"+modelname+".hdf5", verbose=1, save_best_only=True)
+checkpointer = ModelCheckpoint(filepath=data_path + modelname + ".hdf5", verbose=1, save_best_only=True)
 
 
 batch_size = 32
@@ -257,7 +259,7 @@ print "Val_steps_to_take"
 print val_steps_to_take
 print "LOADING MODEL"
 
-model = load_model("data/"+modelname+".hdf5")
+model = load_model(data_path + modelname + ".hdf5")
 hist = model.fit_generator(BatchGenerator(fetcher),
                     steps_per_epoch=steps_to_take,
                     epochs=50,
@@ -270,20 +272,20 @@ hist = model.fit_generator(BatchGenerator(fetcher),
 
 # ### Plot training/validation loss
 print "WRITING DATA TO FILES"
-
-with open("plots/data/" + modelname + "_loss.txt", 'w') as f:
+plotpath = "/home/keegansmith/keras/plots/"
+with open(plotpath + "data/" + modelname + "_loss.txt", 'w') as f:
     for line in hist.history['loss']:
         f.write(str(line)+"\n")
-with open("plots/data/" + modelname + "_val_loss.txt", 'w') as f:
+with open(plotpath + "data/" + modelname + "_val_loss.txt", 'w') as f:
     for line in hist.history['val_loss']:
         f.write(str(line)+"\n")
-with open("plots/data/" + modelname + "_epochs.txt", 'w') as f:
+with open(plotpath + "data/" + modelname + "_epochs.txt", 'w') as f:
     for line in hist.epoch:
         f.write(str(line)+"\n")
-with open("plots/data/" + modelname + "_val_acc.txt", 'w') as f:
+with open(plotpath + "data/" + modelname + "_val_acc.txt", 'w') as f:
     for line in hist.history["val_acc"]:
         f.write(str(line)+"\n")
-with open("plots/data/" + modelname + "_acc.txt", 'w') as f:
+with open(plotpath + "data/" + modelname + "_acc.txt", 'w') as f:
     for line in hist.history["acc"]:
         f.write(str(line)+"\n")
 
@@ -291,7 +293,7 @@ with open("plots/data/" + modelname + "_acc.txt", 'w') as f:
 temp_val_loss = hist.history["val_loss"]
 answer_dex = temp_val_loss.index(max(temp_val_loss))
 
-with open("solutions/" + modelname + ".txt", 'w') as f:
+with open(base_path + "solutions/" + modelname + ".txt", 'w') as f:
     f.write("lR: " + str(learning_rate) + "\n"
             + "Loss fn: " + loss_fn + "\n"
             + "Activation fn: " + activation_fn + "\n\n")
@@ -306,7 +308,7 @@ with open("solutions/" + modelname + ".txt", 'w') as f:
 # Load best model weights
 from keras.models import load_model
 print "LOADING MODEL"
-model = load_model("data/"+modelname+".hdf5")
+model = load_model(data_path + modelname+".hdf5")
 print "MODEL LOADED"
 
 
@@ -322,9 +324,9 @@ predictions = model.predict_generator(TestBatchGenerator(fetcher), steps = len(f
 
 predictions.shape
 
-header = open('all_zeros_benchmark.csv','r').readlines()[0]
+header = open(base_path + 'all_zeros_benchmark.csv','r').readlines()[0]
 
-with open('submission_1.csv','w') as outfile:
+with open(base_path + modelname + 'submission_1.csv','w') as outfile:
     outfile.write(header)
     for i in range(len(fetcher.validation_images_paths)):
         id_ = (fetcher.get_id(fetcher.validation_images_paths[i]))
